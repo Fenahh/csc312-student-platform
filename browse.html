@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Browse · {{ site_name }}{% endblock %}
+{% block content %}
+<div class="container py-5">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+    <h1 class="h2 mb-0">Browse</h1>
+    <form method="get" class="d-flex gap-2" role="search">
+      <input class="form-control" type="search" name="q" value="{{ q }}" placeholder="Search titles" aria-label="Search titles">
+      <button class="btn btn-primary" type="submit">Search</button>
+    </form>
+  </div>
+
+  {% if items %}
+  <div class="row g-3">
+    {% for item in items %}
+    <div class="col-md-6 col-lg-4">
+      <div class="card h-100">
+        <div class="card-body">
+          <h2 class="h5 card-title">{{ item.title }}</h2>
+          {% if item.description %}<p class="card-text text-secondary">{{ item.description }}</p>{% endif %}
+        </div>
+        <div class="card-footer bg-transparent small text-secondary">
+          {{ item.owner.username }} · {{ item.created_at.strftime('%d %b %Y') }}
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="text-secondary">{% if q %}No uploads match "{{ q }}".{% else %}Nothing uploaded yet.{% endif %}</p>
+  {% endif %}
+</div>
+{% endblock %}
