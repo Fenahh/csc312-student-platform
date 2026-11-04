@@ -1,0 +1,50 @@
+{# Include inside the loop in browse.html, where the current item is called `item`:
+   {% include "_reviews.html" %}
+   If your loop variable has another name, add {% set item = that_name %} first. #}
+{% set avg, count = rating_summary(item) %}
+{% set reviews = reviews_for(item) %}
+
+<section class="reviews">
+  <h4>
+    {% if avg %}{{ avg }} / 5 ({{ count }} review{{ '' if count == 1 else 's' }}){% else %}No ratings yet{% endif %}
+  </h4>
+
+  {% for r in reviews %}
+    <div class="review">
+      <strong>{{ r.score }}/5</strong> by {{ r.author.username }}
+      {% if r.comment %}<p>{{ r.comment }}</p>{% endif %}
+      {% if current_user.is_authenticated and (current_user.id == r.user_id or is_admin()) %}
+        <form method="post" action="{{ url_for('reviews.delete_review', review_id=r.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button>Delete</button>
+        </form>
+      {% endif %}
+    </div>
+  {% endfor %}
+
+  {% if current_user.is_authenticated and current_user.id != item.user_id %}
+    {% if not reviews | selectattr('user_id', 'equalto', current_user.id) | list %}
+    <form method="post" action="{{ url_for('reviews.submit_review', item_id=item.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label>Score
+        <select name="score" required>
+          {% for i in range(5, 0, -1) %}<option value="{{ i }}">{{ i }}</option>{% endfor %}
+        </select>
+      </label>
+      <input type="text" name="comment" maxlength="500" placeholder="Write a short review (optional)">
+      <button>Submit review</button>
+    </form>
+    {% endif %}
+
+    <form method="post" action="{{ url_for('reviews.flag_item', item_id=item.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <select name="reason" required>
+        {% for key, label in flag_reasons.items() %}<option value="{{ key }}">{{ label }}</option>{% endfor %}
+      </select>
+      <input type="text" name="details" maxlength="500" placeholder="Details (optional)">
+      <button>Report</button>
+    </form>
+  {% elif not current_user.is_authenticated %}
+    <p><a href="{{ url_for('login') }}">Log in</a> to review or report.</p>
+  {% endif %}
+</section>
