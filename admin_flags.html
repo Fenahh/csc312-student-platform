@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Reported items</h1>
+
+{% if not flags %}
+  <p>No open reports.</p>
+{% else %}
+<table>
+  <thead>
+    <tr><th>Item</th><th>Reason</th><th>Details</th><th>Reported by</th><th>Date</th><th>Action</th></tr>
+  </thead>
+  <tbody>
+  {% for f in flags %}
+    <tr>
+      <td>{{ f.item.title }}</td>
+      <td>{{ flag_reasons[f.reason] }}</td>
+      <td>{{ f.details or '-' }}</td>
+      <td>{{ f.reporter.username }}</td>
+      <td>{{ f.created_at.strftime('%Y-%m-%d') }}</td>
+      <td>
+        <form method="post" action="{{ url_for('reviews.resolve_flag', flag_id=f.id) }}"
+              onsubmit="return event.submitter.value !== 'remove_item' || confirm('Remove this item for good?');">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button name="action" value="dismiss">Dismiss</button>
+          <button name="action" value="remove_item">Remove item</button>
+        </form>
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% endblock %}
