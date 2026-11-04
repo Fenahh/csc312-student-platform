@@ -17,7 +17,7 @@ from flask_wtf.csrf import CSRFProtect
 from sqlalchemy import ForeignKey, String, Text, select
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from werkzeug.security import check_password_hash, generate_password_hash
-
+import reviews 
 
 # --------------------------------------------------------------------------- #
 # Extensions
@@ -198,6 +198,9 @@ def create_app() -> Flask:
         logout_user()
         flash("You're logged out.", "info")
         return redirect(url_for("index"))
+
+    reviews.init(app, db, User, Item)
+    app.register_blueprint(reviews.bp)
 
     with app.app_context():
         db.create_all()
