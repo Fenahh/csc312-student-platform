@@ -22,6 +22,7 @@
         <div class="card-footer bg-transparent small text-secondary">
           {{ item.owner.username }} · {{ item.created_at.strftime('%d %b %Y') }}
         </div>
+        {% include "_reviews.html" %}
       </div>
     </div>
     {% endfor %}
