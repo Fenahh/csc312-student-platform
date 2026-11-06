@@ -1,50 +1,87 @@
-{# Include inside the loop in browse.html, where the current item is called `item`:
+{# Include inside each item card in browse.html (after the card-footer):
    {% include "_reviews.html" %}
-   If your loop variable has another name, add {% set item = that_name %} first. #}
+   The current item must be called `item`. Uses Bootstrap 5 classes only (no JavaScript). #}
 {% set avg, count = rating_summary(item) %}
 {% set reviews = reviews_for(item) %}
+{% set filled = (avg | round | int) if avg else 0 %}
+{% set logged_in = current_user.is_authenticated %}
+{% set mine = reviews | selectattr('user_id', 'equalto', current_user.id) | list if logged_in else [] %}
 
-<section class="reviews">
-  <h4>
-    {% if avg %}{{ avg }} / 5 ({{ count }} review{{ '' if count == 1 else 's' }}){% else %}No ratings yet{% endif %}
-  </h4>
+<div class="card-body border-top">
 
+  {# ---- Rating summary ---- #}
+  <div class="d-flex align-items-center gap-2 mb-3">
+    <span class="fs-5 text-warning" aria-hidden="true">{{ '★' * filled }}{{ '☆' * (5 - filled) }}</span>
+    {% if avg %}
+      <span class="fw-semibold">{{ avg }}</span>
+      <span class="text-secondary small">({{ count }} review{{ '' if count == 1 else 's' }})</span>
+    {% else %}
+      <span class="text-secondary small">No ratings yet. Be the first to review.</span>
+    {% endif %}
+  </div>
+
+  {# ---- Reviews ---- #}
   {% for r in reviews %}
-    <div class="review">
-      <strong>{{ r.score }}/5</strong> by {{ r.author.username }}
-      {% if r.comment %}<p>{{ r.comment }}</p>{% endif %}
-      {% if current_user.is_authenticated and (current_user.id == r.user_id or is_admin()) %}
-        <form method="post" action="{{ url_for('reviews.delete_review', review_id=r.id) }}">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <button>Delete</button>
-        </form>
-      {% endif %}
+    <div class="border rounded-3 p-2 mb-2 bg-body-tertiary">
+      <div class="d-flex align-items-center justify-content-between">
+        <div class="small">
+          <span class="badge text-bg-warning me-1">★ {{ r.score }}/5</span>
+          <strong>{{ r.author.username }}</strong>
+          <span class="text-secondary">· {{ r.created_at.strftime('%d %b %Y') }}</span>
+        </div>
+        {% if logged_in and (current_user.id == r.user_id or is_admin()) %}
+          <form method="post" action="{{ url_for('reviews.delete_review', review_id=r.id) }}" class="m-0">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="btn btn-sm btn-link text-danger p-0" aria-label="Delete review">Delete</button>
+          </form>
+        {% endif %}
+      </div>
+      {% if r.comment %}<p class="small mb-0 mt-1">{{ r.comment }}</p>{% endif %}
     </div>
   {% endfor %}
 
-  {% if current_user.is_authenticated and current_user.id != item.user_id %}
-    {% if not reviews | selectattr('user_id', 'equalto', current_user.id) | list %}
-    <form method="post" action="{{ url_for('reviews.submit_review', item_id=item.id) }}">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <label>Score
-        <select name="score" required>
-          {% for i in range(5, 0, -1) %}<option value="{{ i }}">{{ i }}</option>{% endfor %}
-        </select>
-      </label>
-      <input type="text" name="comment" maxlength="500" placeholder="Write a short review (optional)">
-      <button>Submit review</button>
-    </form>
-    {% endif %}
+  {# ---- Actions ---- #}
+  {% if not logged_in %}
+    <p class="small text-secondary mb-0"><a href="{{ url_for('login') }}">Log in</a> to review or report this upload.</p>
 
-    <form method="post" action="{{ url_for('reviews.flag_item', item_id=item.id) }}">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <select name="reason" required>
-        {% for key, label in flag_reasons.items() %}<option value="{{ key }}">{{ label }}</option>{% endfor %}
-      </select>
-      <input type="text" name="details" maxlength="500" placeholder="Details (optional)">
-      <button>Report</button>
-    </form>
-  {% elif not current_user.is_authenticated %}
-    <p><a href="{{ url_for('login') }}">Log in</a> to review or report.</p>
+  {% elif current_user.id == item.user_id %}
+    <p class="small text-secondary mb-0">This is your upload, so you can't review it.</p>
+
+  {% else %}
+    <div class="d-flex flex-column gap-2 mt-2">
+
+      {% if not mine %}
+      <details>
+        <summary class="btn btn-sm btn-primary" style="list-style:none;">Write a review</summary>
+        <form method="post" action="{{ url_for('reviews.submit_review', item_id=item.id) }}" class="mt-2">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <select name="score" class="form-select form-select-sm mb-2" required aria-label="Score">
+            <option value="5">★★★★★ Excellent (5)</option>
+            <option value="4">★★★★ Good (4)</option>
+            <option value="3">★★★ Okay (3)</option>
+            <option value="2">★★ Poor (2)</option>
+            <option value="1">★ Bad (1)</option>
+          </select>
+          <textarea name="comment" class="form-control form-control-sm mb-2" rows="2"
+                    maxlength="500" placeholder="Say something helpful (optional)"></textarea>
+          <button class="btn btn-sm btn-primary">Submit review</button>
+        </form>
+      </details>
+      {% endif %}
+
+      <details>
+        <summary class="small text-danger" style="cursor:pointer;">Report this upload</summary>
+        <form method="post" action="{{ url_for('reviews.flag_item', item_id=item.id) }}" class="mt-2">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <select name="reason" class="form-select form-select-sm mb-2" required aria-label="Reason">
+            {% for key, label in flag_reasons.items() %}<option value="{{ key }}">{{ label }}</option>{% endfor %}
+          </select>
+          <input type="text" name="details" class="form-control form-control-sm mb-2"
+                 maxlength="500" placeholder="Details (optional)">
+          <button class="btn btn-sm btn-outline-danger">Send report</button>
+        </form>
+      </details>
+
+    </div>
   {% endif %}
-</section>
+</div>
