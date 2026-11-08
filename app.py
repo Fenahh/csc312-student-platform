@@ -72,7 +72,7 @@ class Item(db.Model):
         String(16), nullable=False, default="UNASSIGNED",
         server_default="UNASSIGNED", index=True,
     )
-        filename: Mapped[str | None] = mapped_column(String(255))
+    filename: Mapped[str | None] = mapped_column(String(255))
     original_name: Mapped[str | None] = mapped_column(String(255))
     created_at: Mapped[datetime] = mapped_column(default=utcnow, index=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("user.id"), index=True)
@@ -112,9 +112,9 @@ def create_app(test_config: dict | None = None) -> Flask:
         UPLOAD_FOLDER=os.path.join(app.root_path, "uploads"),
         MAX_CONTENT_LENGTH=10 * 1024 * 1024,  # 10 MB
     )
+    os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
     if test_config:
         app.config.update(test_config)
-        os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
 
     db.init_app(app)
     csrf.init_app(app)
@@ -175,7 +175,7 @@ def create_app(test_config: dict | None = None) -> Flask:
             has_next=page * PAGE_SIZE < total,
         )
 
-        @app.errorhandler(413)
+    @app.errorhandler(413)
     def too_large(_e):
         flash("That file is too big. The limit is 10 MB.", "danger")
         return redirect(url_for("upload"))
@@ -311,8 +311,3 @@ app = create_app()
 
 if __name__ == "__main__":
     app.run(debug=os.environ.get("FLASK_DEBUG") == "1")
-
-if __name__ == "__main__":
-    with app.app_context():
-        db.create_all()
-    app.run(debug=True)
