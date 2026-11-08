@@ -1,15 +1,11 @@
-"""Commons: Flask app with Person C Search & Discovery enhancements.
-
-Person C additions: title/description search, module filtering, pagination, and
-module tagging on upload. Existing registration and authentication are preserved.
-The existing repository stores HTML in its root, so template_folder='.' is set
-explicitly. A later team refactor can relocate all HTML to templates/.
-"""
 import os
+import uuid
 from datetime import datetime, timezone
 from urllib.parse import urlsplit
 
-from flask import Flask, flash, redirect, render_template, request, url_for
+from flask import (
+    Flask, abort, flash, redirect, render_template, request, send_from_directory, url_for,
+)
 from flask_login import (
     LoginManager,
     UserMixin,
@@ -23,6 +19,7 @@ from flask_wtf.csrf import CSRFProtect
 from sqlalchemy import ForeignKey, String, Text, func, or_, select
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from werkzeug.security import check_password_hash, generate_password_hash
+from werkzeug.utils import secure_filename
 import reviews 
 
 from search_utils import (
@@ -41,6 +38,7 @@ db = SQLAlchemy(model_class=Base)
 login_manager = LoginManager()
 csrf = CSRFProtect()
 PAGE_SIZE = 12
+ALLOWED_EXTENSIONS = {".pdf", ".docx", ".png"}
 
 
 def utcnow() -> datetime:
@@ -73,6 +71,8 @@ class Item(db.Model):
         String(16), nullable=False, default="UNASSIGNED",
         server_default="UNASSIGNED", index=True,
     )
+        filename: Mapped[str | None] = mapped_column(String(255))
+    original_name: Mapped[str | None] = mapped_column(String(255))
     created_at: Mapped[datetime] = mapped_column(default=utcnow, index=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("user.id"), index=True)
 
@@ -104,9 +104,12 @@ def create_app(test_config: dict | None = None) -> Flask:
         SQLALCHEMY_DATABASE_URI=os.environ.get("DATABASE_URL", "sqlite:///app.db"),
         SQLALCHEMY_TRACK_MODIFICATIONS=False,
         SITE_NAME="Commons",
+        UPLOAD_FOLDER=os.path.join(app.root_path, "uploads"),
+        MAX_CONTENT_LENGTH=10 * 1024 * 1024,  # 10 MB
     )
     if test_config:
         app.config.update(test_config)
+        os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
 
     db.init_app(app)
     csrf.init_app(app)
@@ -167,6 +170,11 @@ def create_app(test_config: dict | None = None) -> Flask:
             has_next=page * PAGE_SIZE < total,
         )
 
+        @app.errorhandler(413)
+    def too_large(_e):
+        flash("That file is too big. The limit is 10 MB.", "danger")
+        return redirect(url_for("upload"))
+
     @app.route("/upload", methods=["GET", "POST"])
     @login_required
     def upload():
@@ -174,21 +182,56 @@ def create_app(test_config: dict | None = None) -> Flask:
             title = request.form.get("title", "").strip()
             description = request.form.get("description", "").strip()
             module_code = normalized_module(request.form.get("module_code"))
+            file = request.files.get("file")
+            ext = os.path.splitext(file.filename)[1].lower() if file and file.filename else ""
             if not title:
                 flash("Add a title before uploading.", "danger")
             elif len(title) > 120:
                 flash("Title must be 120 characters or fewer.", "danger")
             elif not valid_new_module(module_code):
                 flash("Enter a module code such as CSC312 or MAT111.", "danger")
+            elif not file or not file.filename:
+                flash("Choose a file to upload.", "danger")
+            elif ext not in ALLOWED_EXTENSIONS:
+                flash("Only .pdf, .docx and .png files are allowed.", "danger")
             else:
+                stored_name = f"{uuid.uuid4().hex}{ext}"
+                file.save(os.path.join(app.config["UPLOAD_FOLDER"], stored_name))
                 db.session.add(Item(
                     title=title, description=description, module_code=module_code,
+                    filename=stored_name, original_name=secure_filename(file.filename),
                     owner=current_user,
                 ))
                 db.session.commit()
                 flash("Uploaded.", "success")
                 return redirect(url_for("browse", module=module_code))
         return render_template("upload.html")
+
+    @app.route("/download/<int:item_id>")
+    def download(item_id):
+        item = db.get_or_404(Item, item_id)
+        if not item.filename:
+            abort(404)
+        return send_from_directory(
+            app.config["UPLOAD_FOLDER"], item.filename,
+            as_attachment=True, download_name=item.original_name or item.filename,
+        )
+
+    @app.route("/delete_note/<int:item_id>", methods=["POST"])
+    @login_required
+    def delete_note(item_id):
+        item = db.get_or_404(Item, item_id)
+        if item.user_id != current_user.id:
+            abort(403)
+        if item.filename:
+            try:
+                os.remove(os.path.join(app.config["UPLOAD_FOLDER"], item.filename))
+            except FileNotFoundError:
+                pass
+        db.session.delete(item)
+        db.session.commit()
+        flash("Note deleted.", "info")
+        return redirect(url_for("profile"))
 
     @app.route("/profile")
     @login_required
