@@ -72,6 +72,10 @@
           {% else %}
           <p class="card-text text-secondary fst-italic">No description provided.</p>
           {% endif %}
+
+          {% if item.filename %}
+          <a class="btn btn-sm btn-outline-primary align-self-start mb-3" href="{{ url_for('download', item_id=item.id) }}">Download</a>
+          {% endif %}
           <p class="small text-secondary mt-auto mb-0 pt-3 border-top">
             Shared by {{ item.owner.username }} · {{ item.created_at.strftime('%d %b %Y') }}
           </p>
