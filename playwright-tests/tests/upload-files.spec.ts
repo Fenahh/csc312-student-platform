@@ -48,4 +48,16 @@ test.describe('File upload', () => {
     await page.goto(BASE + '/browse');
     await expect(page.getByText(title)).toHaveCount(0);
   });
+  test('a file over 10 MB is rejected', async ({ page }) => {
+    await register(page, 'big');
+    const title = `BigNote ${Date.now()}`;
+    await fillUpload(page, title, {
+      name: 'big.pdf',
+      mimeType: 'application/pdf',
+      buffer: Buffer.alloc(11 * 1024 * 1024, 'a'), // 11 MB
+    });
+    await expect(page.getByText('That file is too big. The limit is 10 MB.')).toBeVisible();
+    await page.goto(BASE + '/browse');
+    await expect(page.getByText(title)).toHaveCount(0);
+  });
 });
