@@ -1,34 +1,116 @@
 {% extends "base.html" %}
-{% block title %}Browse · {{ site_name }}{% endblock %}
+{% block title %}Browse study resources · {{ site_name }}{% endblock %}
 {% block content %}
-<div class="container py-5">
-  <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
-    <h1 class="h2 mb-0">Browse</h1>
-    <form method="get" class="d-flex gap-2" role="search">
-      <input class="form-control" type="search" name="q" value="{{ q }}" placeholder="Search titles" aria-label="Search titles">
-      <button class="btn btn-primary" type="submit">Search</button>
-    </form>
+<div class="container py-4 py-md-5">
+  <div class="mb-4">
+    <p class="text-uppercase text-secondary fw-semibold small mb-2" style="letter-spacing:.08em">Resource library</p>
+    <h1 class="h2 fw-bold mb-2">Find your next study resource.</h1>
+    <p class="text-secondary mb-0">Explore shared notes and filter by keyword or university module.</p>
+  </div>
+
+  <form method="get" action="{{ url_for('browse') }}" class="bg-white border rounded-3 p-3 p-md-4 mb-4" role="search">
+    <div class="row g-3 align-items-end">
+      <div class="col-12 col-lg-7">
+        <label class="form-label fw-semibold" for="searchQuery">Search study resources</label>
+        <input class="form-control form-control-lg" id="searchQuery" type="search" name="q"
+               value="{{ q }}" maxlength="100" placeholder="e.g. Data Structures, statistics"
+               aria-describedby="searchHelp">
+        <div class="form-text" id="searchHelp">Searches resource titles, descriptions and module codes.</div>
+      </div>
+      <div class="col-12 col-sm-6 col-lg-3">
+        <label class="form-label fw-semibold" for="moduleSelect">Module</label>
+        <select class="form-select form-select-lg" id="moduleSelect" name="module">
+          <option value="">All modules</option>
+          {% for code in modules %}
+          <option value="{{ code }}" {% if module == code %}selected{% endif %}>{{ code }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-12 col-sm-6 col-lg-2 d-grid">
+        <button class="btn btn-primary btn-lg" type="submit">Find notes</button>
+      </div>
+    </div>
+    {% if q or module %}
+    <div class="mt-3">
+      <a href="{{ url_for('browse') }}" class="link-secondary small">Clear all filters</a>
+    </div>
+    {% endif %}
+  </form>
+
+  {% if modules %}
+  <div class="d-flex flex-wrap align-items-center gap-2 mb-4" aria-label="Quick module filters">
+    <span class="text-secondary small me-1">Quick filters:</span>
+    <a class="btn btn-sm {{ 'btn-primary' if not module else 'btn-outline-secondary' }} rounded-pill"
+       href="{{ url_for('browse', q=q) }}" {% if not module %}aria-current="page"{% endif %}>All</a>
+    {% for code in modules %}
+    <a class="btn btn-sm {{ 'btn-primary' if module == code else 'btn-outline-secondary' }} rounded-pill"
+       href="{{ url_for('browse', q=q, module=code) }}"
+       {% if module == code %}aria-current="page"{% endif %}>{{ code }}</a>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <div class="d-flex align-items-baseline justify-content-between gap-3 mb-3" role="status" aria-live="polite">
+    <h2 class="h5 mb-0">{{ 'Search results' if q or module else 'All resources' }}</h2>
+    <span class="small text-secondary">{{ total }} {{ 'resource' if total == 1 else 'resources' }} found</span>
   </div>
 
   {% if items %}
   <div class="row g-3">
     {% for item in items %}
-    <div class="col-md-6 col-lg-4">
-      <div class="card h-100">
-        <div class="card-body">
-          <h2 class="h5 card-title">{{ item.title }}</h2>
-          {% if item.description %}<p class="card-text text-secondary">{{ item.description }}</p>{% endif %}
+    <div class="col-12 col-md-6 col-xl-4">
+      <article class="card h-100 shadow-sm" style="border-color:#e5e7ef">
+        <div class="card-body d-flex flex-column">
+          <div class="mb-3">
+            <a class="badge text-bg-light border text-decoration-none text-dark"
+               href="{{ url_for('browse', module=item.module_code) }}"
+               aria-label="Browse resources in {{ item.module_code }}">{{ item.module_code }}</a>
+          </div>
+          <h3 class="h5 card-title">{{ item.title }}</h3>
+          {% if item.description %}
+          <p class="card-text text-secondary">{{ item.description|truncate(170) }}</p>
+          {% else %}
+          <p class="card-text text-secondary fst-italic">No description provided.</p>
+          {% endif %}
+          <p class="small text-secondary mt-auto mb-0 pt-3 border-top">
+            Shared by {{ item.owner.username }} · {{ item.created_at.strftime('%d %b %Y') }}
+          </p>
         </div>
-        <div class="card-footer bg-transparent small text-secondary">
-          {{ item.owner.username }} · {{ item.created_at.strftime('%d %b %Y') }}
-        </div>
-        {% include "_reviews.html" %}
-      </div>
+         {% include "_reviews.html" %}
+      </article>
     </div>
     {% endfor %}
   </div>
+
+  {% if has_prev or has_next %}
+  <nav aria-label="Resource results pages" class="mt-4">
+    <ul class="pagination justify-content-center">
+      <li class="page-item {{ 'disabled' if not has_prev }}">
+        {% if has_prev %}
+        <a class="page-link" href="{{ url_for('browse', q=q, module=module, page=page-1) }}">Previous</a>
+        {% else %}<span class="page-link">Previous</span>{% endif %}
+      </li>
+      <li class="page-item disabled"><span class="page-link">Page {{ page }}</span></li>
+      <li class="page-item {{ 'disabled' if not has_next }}">
+        {% if has_next %}
+        <a class="page-link" href="{{ url_for('browse', q=q, module=module, page=page+1) }}">Next</a>
+        {% else %}<span class="page-link">Next</span>{% endif %}
+      </li>
+    </ul>
+  </nav>
+  {% endif %}
+
   {% else %}
-  <p class="text-secondary">{% if q %}No uploads match "{{ q }}".{% else %}Nothing uploaded yet.{% endif %}</p>
+  <div class="bg-white border rounded-3 text-center px-4 py-5" role="status">
+    <h3 class="h5 mb-2">No resources found</h3>
+    {% if q or module %}
+    <p class="text-secondary mb-3">No study materials match your current search or module filter.</p>
+    <a href="{{ url_for('browse') }}" class="btn btn-outline-primary">View all resources</a>
+    {% else %}
+    <p class="text-secondary mb-3">The library is empty. Be the first to share a resource.</p>
+    <a href="{{ url_for('upload') }}" class="btn btn-primary">Share a resource</a>
+    {% endif %}
+  </div>
   {% endif %}
 </div>
 {% endblock %}
