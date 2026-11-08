@@ -76,6 +76,7 @@
             Shared by {{ item.owner.username }} · {{ item.created_at.strftime('%d %b %Y') }}
           </p>
         </div>
+         {% include "_reviews.html" %}
       </article>
     </div>
     {% endfor %}
