@@ -19,6 +19,7 @@ from flask_wtf.csrf import CSRFProtect
 from sqlalchemy import ForeignKey, String, Text, func, or_, select
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from werkzeug.security import check_password_hash, generate_password_hash
+from jinja2 import ChoiceLoader, FileSystemLoader
 from werkzeug.utils import secure_filename
 import reviews 
 
@@ -99,6 +100,10 @@ def create_app(test_config: dict | None = None) -> Flask:
     # Current group layout keeps base.html, browse.html etc beside app.py.
     # Explicit template_folder keeps that layout working without moving files.
     app = Flask(__name__, template_folder=".")
+    app.jinja_loader = ChoiceLoader([
+    FileSystemLoader(os.path.join(app.root_path, "templates")),
+    FileSystemLoader(app.root_path),
+    ])
     app.config.update(
         SECRET_KEY=os.environ.get("SECRET_KEY", "dev-only-change-me"),
         SQLALCHEMY_DATABASE_URI=os.environ.get("DATABASE_URL", "sqlite:///app.db"),
